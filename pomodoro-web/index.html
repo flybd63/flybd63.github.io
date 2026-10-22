@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Pomodoro Timer</title>
+<meta name="description" content="Simple Pomodoro timer. Work / Break 1-99 minutes.">
+<!-- AdSense: 承認後に ca-pub-XXXXXXXXXXXXXXXX を自分のパブリッシャーIDに置き換え -->
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6134358345170336" crossorigin="anonymous"></script>
+<style>
+  :root { --bg: #000; --fg: #fff; --accent: #fff; }
+  body.break { --bg: #1a237e; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", Meiryo, sans-serif;
+    display: flex; flex-direction: column; overflow: hidden;
+    transition: background .3s;
+  }
+  header { display: flex; align-items: center; height: 56px; padding: 0 8px; flex: none; }
+  .icon-btn { background: none; border: 0; color: var(--fg); font-size: 26px; width: 44px; height: 44px; cursor: pointer; border-radius: 50%; }
+  .icon-btn:hover { background: rgba(255,255,255,.12); }
+  header .title { margin-left: 8px; font-size: 20px; }
+  main { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 8px 16px; }
+  .layout { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; width: 100%; }
+  .ring-wrap { position: relative; width: min(78vw, 46vh, 360px); aspect-ratio: 1; flex: none; }
+  .ring-wrap svg { width: 100%; height: 100%; display: block; }
+  .time { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+          font-size: min(17vw, 10vh, 80px); font-weight: 300; font-variant-numeric: tabular-nums; }
+  .side { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+  .label { font-size: 22px; letter-spacing: .02em; }
+  .chips { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
+  .chip { border: 1px solid rgba(255,255,255,.5); background: transparent; color: var(--fg); border-radius: 20px;
+          padding: 8px 16px; font-size: 15px; cursor: pointer; }
+  .chip.sel { background: #fff; color: #000; }
+  body.break .chip.sel { color: #1a237e; }
+  .controls { display: flex; gap: 16px; }
+  .btn { min-width: 128px; height: 56px; font-size: 22px; font-weight: 600; border-radius: 28px; cursor: pointer;
+         border: 2px solid #fff; background: #fff; color: #000; letter-spacing: .05em; }
+  body.break .btn.primary { color: #1a237e; }
+  .btn.secondary { background: transparent; color: #fff; }
+  @media (min-aspect-ratio: 1/1) {
+    .layout { flex-direction: row; gap: 32px; }
+    .ring-wrap { width: min(60vh, 40vw, 360px); }
+    .side { flex: 0 1 auto; }
+  }
+  /* ad */
+  .ad { flex: none; display: flex; justify-content: center; min-height: 0; padding-bottom: env(safe-area-inset-bottom); }
+  .ad ins { display: block; width: 320px; height: 50px; }
+  .ad ins[data-ad-status="unfilled"] { display: none; }
+  /* drawer */
+  .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.5); opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 10; }
+  .drawer { position: fixed; top: 0; bottom: 0; left: 0; width: min(300px, 82vw); background: #212121; z-index: 11;
+            transform: translateX(-100%); transition: transform .2s; padding: 16px 0; }
+  body.menu .scrim { opacity: 1; pointer-events: auto; }
+  body.menu .drawer { transform: none; }
+  .drawer h2 { margin: 8px 20px 16px; font-size: 20px; font-weight: 500; }
+  .item { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 14px 20px; background: none;
+          border: 0; color: #fff; font-size: 16px; text-align: left; text-decoration: none; cursor: pointer; }
+  .item:hover { background: rgba(255,255,255,.08); }
+  .switch { width: 40px; height: 22px; border-radius: 11px; background: #666; position: relative; flex: none; transition: background .2s; }
+  .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .2s; }
+  .switch.on { background: #4caf50; }
+  .switch.on::after { transform: translateX(18px); }
+  /* picker */
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; z-index: 20; }
+  .modal.open { display: flex; }
+  .sheet { background: #2b2b2b; border-radius: 16px; padding: 16px; width: min(280px, 86vw); }
+  .sheet h3 { margin: 0 0 8px; text-align: center; font-weight: 500; }
+  .wheel-box { position: relative; height: 180px; }
+  .wheel { height: 100%; overflow-y: scroll; scroll-snap-type: y mandatory; scrollbar-width: none; padding: 70px 0; }
+  .wheel::-webkit-scrollbar { display: none; }
+  .wheel div { height: 40px; line-height: 40px; text-align: center; font-size: 22px; scroll-snap-align: center; color: #bbb; }
+  .wheel-box::before { content: ""; position: absolute; left: 0; right: 0; top: 70px; height: 40px; border-top: 1px solid #777; border-bottom: 1px solid #777; pointer-events: none; }
+  .sheet .row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+  .sheet .row button { background: none; border: 0; color: #8ab4f8; font-size: 16px; padding: 8px 12px; cursor: pointer; }
+</style>
+</head>
+<body>
+<header>
+  <button class="icon-btn" id="menuBtn" aria-label="Menu">☰</button>
+  <span class="title">Pomodoro Timer</span>
+</header>
+
+<main>
+  <div class="layout">
+    <div class="ring-wrap">
+      <svg viewBox="0 0 200 200" aria-hidden="true">
+        <circle cx="100" cy="100" r="86" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="18"/>
+        <circle id="arc" cx="100" cy="100" r="86" fill="none" stroke="#fff" stroke-width="18" stroke-linecap="butt"
+                transform="rotate(-90 100 100)"/>
+      </svg>
+      <div class="time" id="time">25:00</div>
+    </div>
+    <div class="side">
+      <div class="label" id="label"></div>
+      <div class="chips">
+        <button class="chip" id="chipWork"></button>
+        <button class="chip" id="chipBreak"></button>
+        <button class="icon-btn" id="editBtn" aria-label="Edit">✎</button>
+      </div>
+      <div class="controls">
+        <button class="btn primary" id="startBtn">START</button>
+        <button class="btn secondary" id="resetBtn">RESET</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="ad">
+  <!-- 広告ユニットを作成後、data-ad-slot を置き換え -->
+  <ins class="adsbygoogle" data-ad-client="ca-pub-XXXXXXXXXXXXXXXX" data-ad-slot="0000000000"></ins>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<nav class="drawer">
+  <h2>Pomodoro Timer</h2>
+  <button class="item" id="wakeItem"><span id="wakeText"></span><span class="switch" id="wakeSwitch"></span></button>
+  <a class="item" id="rateItem" target="_blank" rel="noopener" href="https://play.google.com/store/apps/details?id=com.flybd63.pomodoro_timer"></a>
+  <a class="item" id="privacyItem" target="_blank" rel="noopener" href="https://flybd63.github.io/privacy_policy/pomodoro/index.html"></a>
+  <button class="item" id="closeItem"></button>
+</nav>
+
+<div class="modal" id="modal">
+  <div class="sheet">
+    <h3 id="pickTitle"></h3>
+    <div style="display:flex;gap:8px">
+      <div style="flex:1"><div class="wheel-box"><div class="wheel" id="wheelWork"></div></div></div>
+      <div style="flex:1"><div class="wheel-box"><div class="wheel" id="wheelBreak"></div></div></div>
+    </div>
+    <div class="row"><button id="pickCancel"></button><button id="pickOk">OK</button></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const ja = (navigator.language || 'en').toLowerCase().startsWith('ja');
+  const S = ja ? {
+    workLabel: m => `Work time for ${m}min`, breakLabel: m => `Break time for ${m}min`,
+    chipWork: m => `Work ${m}min`, chipBreak: m => `Break ${m}min`,
+    wake: '画面を点灯したままにする', rate: 'アプリを評価する', privacy: 'プライバシーポリシー',
+    close: '閉じる', pick: 'Work / Break（分）', cancel: 'キャンセル', min: m => `${m}分`
+  } : {
+    workLabel: m => `Work time for ${m}min`, breakLabel: m => `Break time for ${m}min`,
+    chipWork: m => `Work ${m}min`, chipBreak: m => `Break ${m}min`,
+    wake: 'Keep screen on', rate: 'Rate the app', privacy: 'Privacy Policy',
+    close: 'Close', pick: 'Work / Break (min)', cancel: 'Cancel', min: m => `${m}min`
+  };
+  document.documentElement.lang = ja ? 'ja' : 'en';
+  const $ = id => document.getElementById(id);
+
+  // ---- state (not persisted; always 25/5 on load) ----
+  let workMin = 25, breakMin = 5;
+  let mode = 'work', running = false;
+  let remaining = workMin * 60000, endTime = 0, startPlayed = false;
+  const dur = m => (m === 'work' ? workMin : breakMin) * 60000;
+
+  // ---- audio ----
+  const sndNotify = new Audio('assets/notification_sound.mp3');
+  const sndStart = new Audio('assets/start.mp3');
+  [sndNotify, sndStart].forEach(a => a.preload = 'auto');
+  const play = a => { try { a.currentTime = 0; const p = a.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} };
+  const stopAudio = () => [sndNotify, sndStart].forEach(a => { try { a.pause(); a.currentTime = 0; } catch (e) {} });
+  // unlock on first gesture (START click)
+  function unlockAudio() {
+    [sndNotify, sndStart].forEach(a => {
+      const v = a.volume; a.volume = 0;
+      const p = a.play();
+      const done = () => { a.pause(); a.currentTime = 0; a.volume = v; };
+      if (p && p.then) p.then(done).catch(() => { a.volume = v; }); else done();
+    });
+  }
+
+  // ---- ticker (Worker avoids background throttling) ----
+  let worker = null, fallbackTimer = null;
+  function startTicker() {
+    if (worker || fallbackTimer) return;
+    try {
+      const url = URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),250)'], { type: 'text/javascript' }));
+      worker = new Worker(url);
+      worker.onmessage = tick;
+    } catch (e) { fallbackTimer = setInterval(tick, 250); }
+  }
+  function stopTicker() {
+    if (worker) { worker.terminate(); worker = null; }
+    if (fallbackTimer) { clearInterval(fallbackTimer); fallbackTimer = null; }
+  }
+
+  function tick() {
+    if (!running) return;
+    remaining = endTime - Date.now();
+    if (mode === 'break' && !startPlayed && remaining <= 3000 && remaining > 0) {
+      startPlayed = true; play(sndStart);
+    }
+    if (remaining <= 0) {
+      if (mode === 'work') { play(sndNotify); mode = 'break'; }
+      else { mode = 'work'; }
+      startPlayed = false;
+      remaining = dur(mode);
+      endTime = Date.now() + remaining;
+    }
+    render();
+  }
+
+  // ---- render ----
+  const C = 2 * Math.PI * 86;
+  function fmt(ms) {
+    const s = Math.max(0, Math.ceil(ms / 1000));
+    return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+  }
+  function render() {
+    const total = dur(mode);
+    const p = Math.max(0, Math.min(1, remaining / total));
+    const arc = $('arc');
+    arc.setAttribute('stroke-dasharray', `${C * p} ${C}`);
+    arc.setAttribute('stroke-dashoffset', `${-C * (1 - p)}`);
+    $('time').textContent = fmt(remaining);
+    document.title = (running ? fmt(remaining) + ' - ' : '') + 'Pomodoro Timer';
+    document.body.classList.toggle('break', mode === 'break');
+    $('label').textContent = mode === 'work' ? S.workLabel(workMin) : S.breakLabel(breakMin);
+    $('chipWork').textContent = S.chipWork(workMin);
+    $('chipBreak').textContent = S.chipBreak(breakMin);
+    $('chipWork').classList.toggle('sel', mode === 'work');
+    $('chipBreak').classList.toggle('sel', mode === 'break');
+    $('startBtn').textContent = running ? 'PAUSE' : 'START';
+  }
+
+  // ---- wake lock ----
+  let wakeOn = false, wakeSentinel = null;
+  async function applyWake() {
+    const need = wakeOn && running;
+    try {
+      if (need && !wakeSentinel && 'wakeLock' in navigator) {
+        wakeSentinel = await navigator.wakeLock.request('screen');
+        wakeSentinel.addEventListener('release', () => { wakeSentinel = null; });
+      } else if (!need && wakeSentinel) { await wakeSentinel.release(); wakeSentinel = null; }
+    } catch (e) {}
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') { tick(); applyWake(); }
+  });
+
+  // ---- actions ----
+  function start() {
+    unlockAudio();
+    running = true;
+    endTime = Date.now() + remaining;
+    startPlayed = mode === 'break' && remaining <= 3000;
+    startTicker(); applyWake(); render();
+  }
+  function pause() { running = false; stopAudio(); stopTicker(); applyWake(); render(); }
+  function reset() { running = false; stopAudio(); stopTicker(); startPlayed = false; remaining = dur(mode); applyWake(); render(); }
+  function setMode(m) { running = false; stopAudio(); stopTicker(); mode = m; startPlayed = false; remaining = dur(m); applyWake(); render(); }
+  $('startBtn').onclick = () => running ? pause() : start();
+  $('resetBtn').onclick = reset;
+  $('chipWork').onclick = () => setMode('work');
+  $('chipBreak').onclick = () => setMode('break');
+
+  // ---- drawer ----
+  const menu = open => document.body.classList.toggle('menu', open);
+  $('menuBtn').onclick = () => menu(true);
+  $('scrim').onclick = () => menu(false);
+  $('closeItem').onclick = () => menu(false);
+  $('wakeText').textContent = S.wake;
+  $('rateItem').textContent = S.rate;
+  $('privacyItem').textContent = S.privacy;
+  $('closeItem').textContent = S.close;
+  $('wakeItem').onclick = () => { wakeOn = !wakeOn; $('wakeSwitch').classList.toggle('on', wakeOn); applyWake(); };
+
+  // ---- picker ----
+  const ITEM = 40;
+  function fillWheel(el) {
+    el.innerHTML = '';
+    for (let i = 1; i <= 99; i++) { const d = document.createElement('div'); d.textContent = S.min(i); el.appendChild(d); }
+  }
+  const val = el => Math.max(1, Math.min(99, Math.round(el.scrollTop / ITEM) + 1));
+  fillWheel($('wheelWork')); fillWheel($('wheelBreak'));
+  $('pickTitle').textContent = S.pick;
+  $('pickCancel').textContent = S.cancel;
+  $('editBtn').onclick = () => {
+    $('modal').classList.add('open');
+    $('wheelWork').scrollTop = (workMin - 1) * ITEM;
+    $('wheelBreak').scrollTop = (breakMin - 1) * ITEM;
+  };
+  $('pickCancel').onclick = () => $('modal').classList.remove('open');
+  $('modal').onclick = e => { if (e.target === $('modal')) $('modal').classList.remove('open'); };
+  $('pickOk').onclick = () => {
+    workMin = val($('wheelWork')); breakMin = val($('wheelBreak'));
+    $('modal').classList.remove('open');
+    if (!running) remaining = dur(mode);   // running: current countdown unchanged
+    render();
+  };
+
+  // ---- ads ----
+  try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
+
+  // test hook (harmless)
+  window.__pomo = { get state() { return { mode, running, remaining, workMin, breakMin }; }, tick, setEnd: ms => { endTime = Date.now() + ms; } };
+  render();
+})();
+</script>
+</body>
+</html>
